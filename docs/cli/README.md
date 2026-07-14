@@ -65,7 +65,7 @@ Load only the category you need:
 | **playwright** | Playwright end-to-end testing | 6 | 0 | [playwright.md](playwright.md) |
 | **pr** | pr | 0 | 3 | [pr.md](pr.md) |
 | **project** | project | 0 | 5 | [project.md](project.md) |
-| **pubapi** | Public APIs (weather/stocks/flights/FX, Bitly, Apify, Fingerprint) | 10 | 0 | [pubapi.md](pubapi.md) |
+| **pubapi** | Public APIs (weather/stocks/flights/FX, Bitly, Apify, Fingerprint) | 11 | 0 | [pubapi.md](pubapi.md) |
 | **python** | Python | 27 | 0 | [python.md](python.md) |
 | **quality** | Code Quality | 16 | 0 | [quality.md](quality.md) |
 | **redis** | Redis | 12 | 0 | [redis.md](redis.md) |

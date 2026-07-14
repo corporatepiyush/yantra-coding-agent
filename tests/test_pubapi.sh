@@ -13,7 +13,7 @@ export MCP_FLAGS="--enable pubapi --project $TMP"
 
 # ── 1. Registration (safe/pubapi) ────────────────────────────────────────────
 REG=$(registry_dump "$PROJ_ROOT")
-for t in pubapi_weather pubapi_forecast pubapi_stock pubapi_fx pubapi_flight; do
+for t in pubapi_weather pubapi_forecast pubapi_stock pubapi_fx pubapi_flight pubapi_book_search; do
     grep -q "^$t|safe|pubapi|" <<<"$REG" || fail "$t not registered as safe/pubapi"
 done
 
@@ -38,7 +38,7 @@ netok() { # $1=tool $2=args $3=expected-key-on-success
     local o; o=$(mcp_call "$HARNESS" "$1" "$2" || true)
     [[ -n "$o" ]] || fail "$1 produced no output at all"
     grep -q "\"$3\"" <<<"$o" && return 0
-    grep -qiE 'could not reach|offline|rate.?limit|no quote|no rate|no location|no live data|no data' <<<"$o" \
+    grep -qiE 'could not reach|offline|rate.?limit|no quote|no rate|no location|no live data|no data|no results' <<<"$o" \
         || fail "$1 neither returned data nor a clean error: $o"
 }
 netok pubapi_weather  '{"location":"Tokyo"}'             temperature_c
@@ -46,6 +46,7 @@ netok pubapi_forecast '{"location":"London","days":2}'   days
 netok pubapi_stock    '{"symbol":"AAPL"}'                price
 netok pubapi_fx       '{"from":"USD","to":"EUR"}'        rate
 netok pubapi_flight   '{"icao24":"4b1806"}'              count
+netok pubapi_book_search '{"query":"cache locality","limit":2}' total
 
 # ── 5. Authenticated APIs (FingerprintJS / Bitly / Apify) ────────────────────
 unset FPJS_API_KEY BITLY_TOKEN APIFY_TOKEN   # exercise the missing-key path deterministically

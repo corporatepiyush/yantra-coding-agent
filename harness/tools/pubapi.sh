@@ -146,6 +146,33 @@ tool_pubapi_flight() {
         || printf 'flight lookup failed to parse'
 }
 
+# pubapi_book_search — full-text search INSIDE digitized books (OpenLibrary /
+# Internet Archive "search inside"). Keyless. Returns matching books with the
+# highlighted snippet ({{{term}}} markers normalised to «term») + a read URL.
+tool_pubapi_book_search() {
+    _pubapi_need || return 1
+    local q limit; q=$(tool_arg query); limit=$(tool_arg limit 10)
+    [[ -z "$q" ]] && { printf 'query required (text to find inside books)'; return 1; }
+    [[ "$limit" =~ ^[0-9]+$ ]] || limit=10; (( limit < 1 )) && limit=1; (( limit > 50 )) && limit=50
+    local body; body=$(_pubapi_get "https://openlibrary.org/search/inside.json?q=$(url_encode "$q")") \
+        || { printf 'could not reach OpenLibrary (offline?)'; return 1; }
+    printf '%s' "$body" | jq -e '.hits.hits' >/dev/null 2>&1 \
+        || { printf 'no results (or unexpected response) for "%s"' "$q"; return 1; }
+    printf '%s' "$body" | jq -c --arg q "$q" --argjson lim "$limit" '
+        def clean: (. // "") | gsub("\\{\\{\\{";"«") | gsub("\\}\\}\\}";"»") | gsub("\\s+";" ") | gsub("^ | $";"");
+        { query: $q,
+          total: (.hits.total.value? // .hits.total // (.hits.hits|length)),
+          results: [ .hits.hits[:$lim][] | (.fields.identifier[0] // (._id|split("|")[0])) as $id | {
+            title: (.fields.meta_title[0] // $id),
+            author: (.fields.meta_creator[0] // null),
+            year: (.fields.meta_year[0] // null),
+            archive_id: $id,
+            page: (.fields.page_num[0][0]? // null),
+            read_url: ("https://archive.org/details/" + ($id // "")),
+            snippet: (.highlight.text[0] // "" | clean) } ] }' 2>/dev/null \
+        || printf 'book search failed to parse'
+}
+
 # ── Authenticated public APIs (an API key in the environment is required) ─────
 # The secret is passed via a header FILE (-H @<(...)), NEVER on the curl argv:
 # argv is world-readable through `ps`, so a key on the command line leaks to every
@@ -253,6 +280,7 @@ tool_register "pubapi_forecast"  tool_pubapi_forecast  '{"type":"object","proper
 tool_register "pubapi_stock"     tool_pubapi_stock     '{"type":"object","properties":{"symbol":{"type":"string","description":"ticker: plain symbol (AAPL, MSFT), indices use ^ (^GSPC), crypto e.g. BTC-USD"}},"required":["symbol"]}' safe all pubapi
 tool_register "pubapi_fx"        tool_pubapi_fx        '{"type":"object","properties":{"from":{"type":"string","description":"source currency, 3-letter code (USD)"},"to":{"type":"string","description":"target currency, 3-letter code (EUR)"},"amount":{"type":"number","description":"amount to convert (default 1)"}},"required":["from","to"]}' safe all pubapi
 tool_register "pubapi_flight"    tool_pubapi_flight    '{"type":"object","properties":{"icao24":{"type":"string","description":"24-bit hex transponder id (e.g. 4b1806) — the reliable keyless lookup"},"callsign":{"type":"string","description":"flight callsign (best-effort), e.g. UAL123"}}}' safe all pubapi
+tool_register "pubapi_book_search" tool_pubapi_book_search '{"type":"object","properties":{"query":{"type":"string","description":"text to search for INSIDE books full text (quote for a phrase)"},"limit":{"type":"integer","description":"max results (default 10, max 50)"}},"required":["query"]}' safe all pubapi
 # Authenticated (env-var API keys): FingerprintJS Pro, Bitly, Apify.
 tool_register "pubapi_fingerprint"    tool_pubapi_fingerprint    '{"type":"object","properties":{"request_id":{"type":"string","description":"a single identification event id (FingerprintJS requestId)"},"visitor_id":{"type":"string","description":"a visitor id — returns visit history"}}}' safe all pubapi
 tool_register "pubapi_bitly_shorten"  tool_pubapi_bitly_shorten  '{"type":"object","properties":{"url":{"type":"string","description":"the long http(s) URL to shorten"}},"required":["url"]}' writes all pubapi
