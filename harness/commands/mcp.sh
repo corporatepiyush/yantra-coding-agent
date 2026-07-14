@@ -17,7 +17,7 @@
 #  - T10: an oversized result spills to a file and returns as a resource link.
 #  - T12: plan://current resolves to the live plan.
 #
-# Known T8 remainders (deliberate, tracked in PLAN.md): sampling for the
+# Known T8 remainders (deliberate): sampling for the
 # *_llm_* tools (hosts without it — i.e. all, today — fall back to the provider
 # profile, which is the D5-documented fallback), prompts/* (skills have no
 # listable registry yet), and roots re-scanning. The loop-removal half (T8-b/c)

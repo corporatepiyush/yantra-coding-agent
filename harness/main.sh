@@ -33,7 +33,7 @@ source "$YCA_DIR/harness/register.sh"
 cleanup_register_trap
 
 # ─── Main entry ───
-# Yantra is a pure MCP server (owner amendment, 2026-07-13 — see PLAN.md T8).
+# Yantra is a pure MCP server (owner amendment, 2026-07-13).
 # The CLI subcommand surface, interactive REPL, NDJSON stdio surface, roles,
 # and the agent loop were removed. Removed flags fail loudly with their MCP
 # replacement (playbook M4) — never a silent no-op.
@@ -78,7 +78,7 @@ main() {
             --version) printf '%s\n' "$YCA_VERSION"; exit 0 ;;
             -h|--help) _mcp_only_usage; exit 0 ;;
             --role|--role=*|--workflow|--workflow=*)
-                logmsg "removed: '$1'. The reasoning loop belongs to the MCP host (PLAN.md D11); workflows are MCP tools named wf__<id>."
+                logmsg "removed: '$1'. The reasoning loop belongs to the MCP host; workflows are MCP tools named wf__<id>."
                 exit 64 ;;
             *)
                 logmsg "removed: '$1'. The CLI subcommand surface is gone — Yantra is a pure MCP server; use tools/call over MCP (docs/AGENT_GUIDE.md)."

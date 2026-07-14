@@ -26,8 +26,7 @@ LLM-backed, **you** may be the model it calls.
 ## 2. How to drive Yantra — it IS an MCP server
 
 Yantra is a pure Model Context Protocol server over stdio (the CLI subcommand,
-NDJSON, and REPL surfaces were removed — owner amendment in PLAN.md T8; the map
-of every removed call to its replacement is docs/MIGRATION_MCP_ONLY.md).
+NDJSON, and REPL surfaces were removed — owner amendment).
 
 ```
 yantra-mcp-server.sh              # MCP server on stdio (this is the default)

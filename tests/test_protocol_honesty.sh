@@ -3,7 +3,7 @@
 # with the surface; the same defect-a guard now walks the MCP handshake).
 # (1) initialize advertises no capability without a handler, both directions;
 # (2) README tool/workflow counts equal the REGISTRY counts, computed by SOURCING
-#     the harness (never by grepping source text — PLAN.md T1 assertion #3);
+#     the harness (never by grepping source text);
 # (3) dead function _k8s_run is gone (and siblings kept).
 set -Euo pipefail
 HARNESS="$1"; TMP="$2"

@@ -13,6 +13,27 @@ _git_valid_ref() {
     return 0
 }
 
+# _wh LEVEL MSG… — debug-log helper for git.wipe-history. It appends the PLAIN
+# message to the YCA_WIPE_LOG accumulator AND prints it to stderr in LEVEL's
+# colour. The accumulator is surfaced as the workflow result's data.log, because
+# the MCP bridge captures a workflow's stderr — so logmsg alone is invisible to an
+# MCP host. This is how "lots of helpful debug messages" reach BOTH surfaces.
+declare -a YCA_WIPE_LOG=()
+_wh() {
+    local level="$1"; shift
+    local msg="$*"
+    YCA_WIPE_LOG+=("$msg")
+    case "$level" in
+        ok)   logmsg "$(c_ok   "$msg")" ;;
+        warn) logmsg "$(c_warn "$msg")" ;;
+        info) logmsg "$(c_info "$msg")" ;;
+        dim)  logmsg "$(c_dim  "$msg")" ;;
+        *)    logmsg "$msg" ;;
+    esac
+}
+# _wh_json — the accumulated log as a JSON array (for --argjson log …).
+_wh_json() { printf '%s\n' ${YCA_WIPE_LOG[@]+"${YCA_WIPE_LOG[@]}"} | jq -R . | jq -cs .; }
+
 wf_git_quicksave() {
     doctor_check_needs "git" || return 1
     local message="${INPUT_message:-}"
@@ -517,6 +538,231 @@ wf_git_rescue() {
         '{ok:true,summary:("rescue inventory: "+($s|tostring)+" stash(es), "+($d|tostring)+" dangling commit(s)"),data:{stashes:$s,dangling:$d,orig_head:$o}}')"
 }
 
+# git.wipe-history — collapse the ENTIRE history of a branch into ONE root commit,
+# very carefully. This is the harness's most destructive git operation: every prior
+# commit is discarded and (optionally) force-pushed away, so the remote loses its
+# history too. It is built to be survivable and loud:
+#   1) it writes a FULL `git bundle` of every ref (incl. stash) BEFORE touching
+#      anything and refuses to continue if that backup can't be made/verified;
+#   2) the rewrite and the push are gated SEPARATELY (confirm_action);
+#   3) the result is guard-checked (single root commit, tree preserved) before any
+#      push, and every outward step reports an HONEST exit code;
+#   4) it is LOCAL-ONLY unless inputs.push=true, and it never invents a co-author —
+#      the commit carries the repo's configured git identity, nothing else.
+# It prints copious progress so a human can follow (and audit) each step.
+#
+# Inputs (all optional):
+#   message           subject for the single root commit   (default "Initial commit")
+#   branch            branch to flatten                     (default: current branch)
+#   include_worktree  "true" snapshots the working tree (git add -A); else the
+#                     committed HEAD tree is snapshotted    (default: false)
+#   push              "true" to force-push after the local rewrite (default: false)
+#   remote            remote to force-push to               (default: origin)
+#   backup_dir        where the bundle is written  (default <repo>/.git/yca-history-backups)
+wf_git_wipe_history() {
+    doctor_check_needs "git" || return 1
+    local pdir="$YCA_PROJECT_DIR"
+    ( cd "$pdir" && git rev-parse --git-dir >/dev/null 2>&1 ) || { emit_fail "not a git repository: $pdir"; return 1; }
+
+    # ---- inputs & validation (block option-injection into git before anything) --
+    local message="${INPUT_message:-Initial commit}"
+    local branch="${INPUT_branch:-}"
+    local remote="${INPUT_remote:-origin}"
+    local include_worktree="${INPUT_include_worktree:-false}"
+    local do_push="${INPUT_push:-false}"
+    local backup_dir="${INPUT_backup_dir:-$pdir/.git/yca-history-backups}"
+    if [[ -n "$branch" ]] && ! _git_valid_ref "$branch"; then
+        emit_fail "invalid branch name '$branch' — must start alphanumeric with no shell metacharacters or leading '-'"; return 0
+    fi
+    shell_arg_safe "$remote" >/dev/null || { emit_fail "invalid remote name '$remote'"; return 0; }
+
+    YCA_WIPE_LOG=()          # reset the structured debug log (surfaced as data.log)
+    logmsg ""
+    _wh warn "$SYM_WARN git.wipe-history — REWRITES history to a single commit; this cannot be undone from git alone"
+    _wh dim  "    a full backup bundle is written first, so recovery stays possible even after a force-push"
+
+    # ---- 1) INVENTORY (read-only) --------------------------------------------
+    emit_progress "inventory" "surveying repository state" 5
+    local cur_branch; cur_branch=$( cd "$pdir" && git rev-parse --abbrev-ref HEAD 2>/dev/null )
+    [[ -z "$branch" ]] && branch="$cur_branch"
+    if [[ -z "$branch" || "$branch" == "HEAD" ]]; then
+        emit_fail "detached HEAD or unborn branch — check out a named branch first, or pass inputs.branch"; return 0
+    fi
+    if ! ( cd "$pdir" && git show-ref --verify --quiet "refs/heads/$branch" ); then
+        emit_fail "branch '$branch' does not exist locally"; return 0
+    fi
+    local old_tree commit_count all_branches remotes dirty stash_present
+    old_tree=$(     cd "$pdir" && git rev-parse "${branch}^{tree}" )
+    commit_count=$( cd "$pdir" && git rev-list --count "$branch" )
+    all_branches=$( cd "$pdir" && git for-each-ref --format='%(refname:short)' refs/heads | paste -sd' ' - )
+    remotes=$(      cd "$pdir" && git remote | paste -sd' ' - )
+    dirty=$(        cd "$pdir" && git status --porcelain | head -1 )
+    ( cd "$pdir" && git rev-parse -q --verify refs/stash >/dev/null 2>&1 ) && stash_present="yes" || stash_present="no"
+
+    logmsg ""
+    _wh info '═══ 1/6  Inventory ═══'
+    _wh plain "  repository      : $pdir"
+    _wh plain "  target branch   : $branch   (checked out now: ${cur_branch:-<none>})"
+    _wh plain "  commits now     : $commit_count   $SYM_ARROW   will become 1"
+    _wh plain "  branch HEAD     : $(cd "$pdir" && git rev-parse --short "$branch")"
+    _wh plain "  local branches  : ${all_branches:-<none>}"
+    _wh plain "  remotes         : ${remotes:-<none>}"
+    _wh plain "  stash present   : $stash_present"
+    if [[ -n "$dirty" ]]; then
+        _wh warn "  working tree    : DIRTY (uncommitted changes present)"
+        [[ "$include_worktree" == "true" ]] \
+            && _wh dim "                    include_worktree=true  $SYM_ARROW  the new commit WILL include them" \
+            || _wh dim "                    include_worktree=false $SYM_ARROW  new commit = committed HEAD; uncommitted changes stay on disk, not in history"
+    else
+        _wh plain "  working tree    : clean"
+    fi
+    _wh plain "  snapshot source : $([[ "$include_worktree" == "true" ]] && echo 'working tree (git add -A)' || echo 'committed HEAD tree')"
+    _wh plain "  after wipe      : $([[ "$do_push" == "true" ]] && echo "FORCE-PUSH to $remote/$branch (destroys remote history)" || echo 'local only (no push)')"
+
+    # ---- 2) BACKUP FIRST — refuse to proceed without a verified bundle --------
+    emit_progress "backup" "bundling every ref before touching anything" 20
+    logmsg ""
+    _wh info '═══ 2/6  Backup (written BEFORE any change) ═══'
+    mkdir -p "$backup_dir" || { emit_fail "cannot create backup dir: $backup_dir"; return 1; }
+    local ts bundle; ts=$( date +%Y%m%d-%H%M%S ); bundle="$backup_dir/wipe-${branch//\//_}-${ts}.bundle"
+    # Enumerate EVERY ref (heads, tags, remotes, AND refs/stash) so the bundle is a
+    # complete, restorable snapshot — `--all` can miss the stash on some git versions.
+    local -a allrefs; mapfile -t allrefs < <( cd "$pdir" && git for-each-ref --format='%(refname)' )
+    local bk_out bk_rc
+    bk_out=$( cd "$pdir" && git bundle create "$bundle" "${allrefs[@]}" 2>&1 ) && bk_rc=0 || bk_rc=$?
+    if [[ $bk_rc -ne 0 ]]; then
+        logmsg "$bk_out"; emit_fail "backup bundle FAILED (rc=$bk_rc) — refusing to wipe history without a backup"; return 1
+    fi
+    if ! ( cd "$pdir" && git bundle verify "$bundle" >/dev/null 2>&1 ); then
+        emit_fail "backup bundle verify FAILED — refusing to proceed; inspect $bundle"; return 1
+    fi
+    _wh ok  "  $SYM_OK backed up ${#allrefs[@]} ref(s) & verified: $bundle  ($(du -h "$bundle" 2>/dev/null | cut -f1))"
+    _wh dim "    restore anytime with:  git clone \"$bundle\" <dir>"
+
+    # ---- 3) CONSENT — the destructive gate -----------------------------------
+    logmsg ""
+    _wh info '═══ 3/6  Consent ═══'
+    if ! confirm_action "Wipe history on '$branch' ($commit_count commits $SYM_ARROW 1)" \
+        "rewrite '$branch' to a single root commit — discards all $commit_count commits of history" \
+        "$([[ "$do_push" == "true" ]] && echo "then FORCE-PUSH to $remote/$branch — destroys the remote's history too" || echo "local only — the remote is NOT touched")" \
+        "backup already written to: $bundle"; then
+        _wh warn "  cancelled — nothing changed"
+        emit result "$(jq -n --arg b "$bundle" --argjson log "$(_wh_json)" '{ok:false,summary:"cancelled — nothing changed; backup left in place",data:{changed:false,backup:$b,log:$log}}')"
+        return 0
+    fi
+
+    # ---- 4) REWRITE — build the single root commit ---------------------------
+    emit_progress "rewrite" "building single root commit" 45
+    logmsg ""
+    _wh info '═══ 4/6  Rewrite ═══'
+    if [[ "$cur_branch" != "$branch" ]]; then
+        ( cd "$pdir" && git checkout -q "$branch" ) || { emit_fail "could not checkout '$branch' — repo untouched"; return 1; }
+        _wh plain "  checked out $branch"
+    fi
+    # default mode: snapshot committed HEAD exactly — reset index to HEAD so any
+    # pre-staged changes can't silently leak into the "clean" snapshot.
+    [[ "$include_worktree" != "true" ]] && ( cd "$pdir" && git reset -q --mixed HEAD ) 2>/dev/null || true
+    local tmp="_yca_wipe_$$"
+    if ! ( cd "$pdir" && git checkout -q --orphan "$tmp" ); then
+        emit_fail "could not create orphan branch — '$branch' left intact"; return 1
+    fi
+    _wh plain "  created orphan working branch (no parents)"
+    if [[ "$include_worktree" == "true" ]]; then
+        if ! ( cd "$pdir" && git add -A ); then
+            ( cd "$pdir" && git checkout -q -f "$branch"; git branch -D "$tmp" >/dev/null 2>&1 )
+            emit_fail "git add -A failed — '$branch' restored, nothing changed"; return 1
+        fi
+        _wh plain "  staged working tree (git add -A)"
+    fi
+    if ! ( cd "$pdir" && git commit -q --no-verify -m "$message" ); then
+        ( cd "$pdir" && git checkout -q -f "$branch"; git branch -D "$tmp" >/dev/null 2>&1 )
+        emit_fail "commit failed (empty tree?) — '$branch' restored, nothing changed"; return 1
+    fi
+    ( cd "$pdir" && git branch -q -D "$branch" && git branch -q -m "$branch" )
+    local new_head; new_head=$( cd "$pdir" && git rev-parse --short HEAD )
+    _wh ok "  $SYM_OK new root commit: $new_head  \"$message\""
+
+    # ---- 5) VERIFY — guards that BLOCK the push if anything is off ------------
+    emit_progress "verify" "verifying the rewrite before any push" 65
+    logmsg ""
+    _wh info '═══ 5/6  Verify (guards) ═══'
+    local ok=1 n parents
+    n=$(       cd "$pdir" && git rev-list --count HEAD )
+    parents=$( cd "$pdir" && git rev-list --parents -1 HEAD | awk '{print NF-1}' )
+    [[ "$n" == "1" ]]       && _wh ok "  $SYM_OK single commit on $branch"        || { _wh warn "  $SYM_WARN expected 1 commit, got $n"; ok=0; }
+    [[ "$parents" == "0" ]] && _wh ok "  $SYM_OK root commit (0 parents)"          || { _wh warn "  $SYM_WARN commit has $parents parent(s)"; ok=0; }
+    if [[ "$include_worktree" != "true" ]]; then
+        if ( cd "$pdir" && git diff --quiet "$old_tree" "HEAD^{tree}" ); then
+            _wh ok "  $SYM_OK file tree byte-identical to previous HEAD (no content lost)"
+        else
+            _wh warn "  $SYM_WARN tree differs from previous HEAD — NOT pushing; investigate"; ok=0
+        fi
+    fi
+    if [[ "$ok" != "1" ]]; then
+        emit result "$(jq -n --arg b "$bundle" --arg br "$branch" --argjson log "$(_wh_json)" \
+            '{ok:false,summary:"rewrite verification FAILED — did NOT push; restore from backup if the local branch looks wrong",data:{branch:$br,backup:$b,pushed:false,log:$log}}')"
+        return 1
+    fi
+
+    # ---- 6) PUSH — the irreversible remote step, its own gate & honest rc -----
+    local pushed=false push_note="local only (push not requested)"
+    if [[ "$do_push" == "true" ]]; then
+        logmsg ""
+        _wh info '═══ 6/6  Push (irreversible on the remote) ═══'
+        if ! ( cd "$pdir" && git remote get-url "$remote" >/dev/null 2>&1 ); then
+            push_note="remote '$remote' not configured — kept local"
+            _wh warn "  $SYM_WARN $push_note"
+        elif ! confirm_action "Force-push wiped history to $remote/$branch" \
+                "git push --force $remote $branch — destroys the remote's history for '$branch'"; then
+            push_note="push cancelled — local branch is already rewritten"
+            _wh warn "  $SYM_WARN $push_note"
+        else
+            emit_progress "push" "force-pushing to $remote/$branch" 85
+            local push_out push_rc
+            push_out=$( cd "$pdir" && git push --force "$remote" "$branch" 2>&1 ) && push_rc=0 || push_rc=$?
+            if [[ $push_rc -eq 0 ]]; then
+                pushed=true; push_note="force-pushed to $remote/$branch"
+                _wh ok "  $SYM_OK $push_note"
+            else
+                logmsg "$push_out"
+                push_note="LOCAL rewrite done but force-push FAILED (rc=$push_rc) — check remote/auth; retry: git push --force $remote $branch"
+                _wh warn "  $SYM_WARN $push_note"
+                emit result "$(jq -n --arg b "$bundle" --arg br "$branch" --arg s "$new_head" --arg n "$push_note" --argjson rc "$push_rc" --argjson log "$(_wh_json)" \
+                    '{ok:false,summary:$n,data:{branch:$br,commit:$s,backup:$b,pushed:false,rc:$rc,log:$log}}')"
+                return 0
+            fi
+        fi
+    fi
+
+    # ---- purge unreachable history locally + honest final report -------------
+    emit_progress "purge" "expiring reflog + gc (drop unreachable history on disk)" 95
+    ( cd "$pdir" && git reflog expire --expire=now --all >/dev/null 2>&1 ) || true
+    ( cd "$pdir" && git gc --prune=now >/dev/null 2>&1 ) || true
+    # Careful: we do NOT delete other branches/stash — we REPORT them, because they
+    # still hold old history and the caller may want them.
+    local other_refs
+    other_refs=$( cd "$pdir" && git for-each-ref --format='%(refname:short)' refs/heads | grep -vxF "$branch" | paste -sd' ' - )
+    [[ "$stash_present" == "yes" ]] && other_refs="${other_refs:+$other_refs }stash"
+
+    logmsg ""
+    _wh info '═══ Done ═══'
+    _wh ok "  $SYM_OK '$branch' is now a single root commit ($new_head)"
+    _wh plain "  $push_note"
+    if [[ -n "$other_refs" ]]; then
+        _wh warn "  $SYM_WARN other refs still hold old history: $other_refs"
+        _wh dim  "    to fully purge, remove them yourself:  git branch -D <name>   /   git stash clear"
+    fi
+    _wh dim "  backup (keep until satisfied): $bundle"
+
+    emit result "$(jq -n \
+        --arg br "$branch" --arg s "$new_head" --arg msg "$message" --arg b "$bundle" \
+        --argjson before "$commit_count" --argjson pushed "$pushed" --arg other "${other_refs:-}" \
+        --argjson log "$(_wh_json)" \
+        '{ok:true,
+          summary:("wiped history on "+$br+": "+($before|tostring)+" commits "+"→ 1 root commit "+$s+(if $pushed then "; force-pushed" else "; local only" end)),
+          data:{branch:$br,commit:$s,message:$msg,commits_before:$before,commits_after:1,pushed:$pushed,other_refs_with_history:$other,backup:$b,log:$log}}')"
+}
+
 wf_register "git.quicksave"  wf_git_quicksave  1 writes "git" "Add+commit+push"
 wf_register "git.commit"     wf_git_commit     1 writes "git" "Commit staged changes"
 wf_register "git.sync"       wf_git_sync       1 writes "git" "Fetch+rebase+push"
@@ -532,3 +778,4 @@ wf_register "git.release"    wf_git_release    1 writes "git" "Tag + push a rele
 wf_register "git.conflict-assist" wf_git_conflict_assist 1 writes "git" "Show both sides of a conflict, then gated --continue/--abort"
 wf_register "git.worktree"   wf_git_worktree   1 writes "git" "List/add/remove/prune worktrees"
 wf_register "git.rescue"     wf_git_rescue     1 safe "git" "Lost-work first aid: reflog+stashes+dangling commits+recovery recipes"
+wf_register "git.wipe-history" wf_git_wipe_history 3 dangerous "git" "Collapse ALL history to one root commit — backs up first, gated, verified, optional force-push"

@@ -6,7 +6,7 @@
 # purity, spill resource links resolving byte-identical, serial multi-id
 # answering, cancellation tolerance, SIGPIPE cleanup, and the fuzz corpus.
 #
-# NOT covered (not built yet, tracked in PLAN.md T8): sampling round-trips,
+# NOT covered (not built yet): sampling round-trips,
 # prompts/*, roots re-scan. The loop-removal half is evidence-gated on T5.
 set -Euo pipefail
 HARNESS="$1"; TMP="$2"

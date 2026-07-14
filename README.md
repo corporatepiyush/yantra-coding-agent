@@ -4,7 +4,7 @@
 
 ### The coding agent that does the mechanical 90% for **zero tokens** — and saves the LLM for what actually needs a brain.
 
-**598 built-in tools · 112 deterministic workflows · 10 languages · any LLM (or none)**
+**598 built-in tools · 113 deterministic workflows · 10 languages · any LLM (or none)**
 Pure Bash. Four tiny deps. Clone and run — on macOS, Linux, FreeBSD, or Windows (WSL).
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
@@ -61,7 +61,7 @@ No lock-in. No daemon. No telemetry. No cloud account. It's a script.
 
 <div align="center">
 
-| 🧰 **598** | ⚡ **112** | 🗣️ **10** | 🧠 **24** | 🔒 **61** |
+| 🧰 **598** | ⚡ **113** | 🗣️ **10** | 🧠 **24** | 🔒 **61** |
 |:---:|:---:|:---:|:---:|:---:|
 | built-in tools | zero-token workflows | languages, deeply | LLM diagnostic tools | test suites |
 
@@ -74,7 +74,7 @@ No lock-in. No daemon. No telemetry. No cloud account. It's a script.
 - **24 LLM-backed diagnostic tools** — "senior engineer on tap": diagnose a
   CrashLoopBackOff, review a Dockerfile, explain a failing CI run, find the
   insight in a dataset.
-- **112 workflows** that chain tools into one-word actions: `git.quicksave`,
+- **113 workflows** that chain tools into one-word actions: `git.quicksave`,
   `pipeline.ci`, `sec.pipeline`, `project.onboard`, `net.diagnose`,
   `test.flaky`, `git.rescue`.
 - **229 language-specific tools** — not just `build`/`test`, but `clippy`,
@@ -148,8 +148,8 @@ yantra> why is the auth middleware rejecting valid tokens?   # ← the LLM earns
 ## Usage (MCP over stdio — the only surface)
 
 Yantra is a pure MCP server. The CLI subcommands, interactive REPL, and NDJSON
-machine mode were removed (owner amendment, PLAN.md T8); every removed call maps
-to an MCP replacement in [docs/MIGRATION_MCP_ONLY.md](docs/MIGRATION_MCP_ONLY.md).
+machine mode were removed (owner amendment); every removed call maps
+to an MCP replacement.
 
     bash yantra-mcp-server.sh              # MCP server on stdio (default)
     bash yantra-mcp-server.sh -y           # writes pre-consented for the session
@@ -412,7 +412,7 @@ harness/
   core/    (20 modules)         # dispatch, config, providers, doctor, scanner, kg, llm, db…
   tools/                        # 6 core + 30+ categories (24 LLM-backed)
   langs/   (10 modules)         # 229 language-specific tools
-  workflows/  (31 modules)      # 112 deterministic workflows (one file per namespace)
+  workflows/  (31 modules)      # 113 deterministic workflows (one file per namespace)
   commands/                     # the MCP server (JSON-RPC over stdio)
 tests/                          # 61 test suites
 docs/                           # GUIDE · EXAMPLES · CONFIGURATION · DEPENDENCIES · ARCHITECTURE

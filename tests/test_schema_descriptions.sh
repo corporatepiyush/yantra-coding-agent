@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Test T6: Schema descriptions + enums.
 # Sources the harness and iterates the REGISTRY (YCA_TOOL_SCHEMAS) — never greps
-# source text (PLAN.md T6). Enforces, for every registered tool schema:
+# source text. Enforces, for every registered tool schema:
 #  (1) parses under jq -e;
 #  (2) every property has a non-empty description;
 #  (3) `required` is a subset of `properties` keys (classic silent-drift bug);

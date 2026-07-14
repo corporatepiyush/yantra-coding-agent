@@ -1,11 +1,10 @@
 # Yantra Coding Agent — Architecture
 
 Yantra is a **pure MCP server**: a single Bash process that speaks JSON-RPC 2.0
-over stdio, exposing ~598 tools and ~112 workflows to any Model Context Protocol
+over stdio, exposing ~598 tools and ~113 workflows to any Model Context Protocol
 host. The host owns the conversation and the reasoning loop; Yantra owns the
 tools, their schemas, validation, consent gating, discovery, plans, budgets, and
-the single-shot `*_llm_*` diagnostic calls. (See
-[MIGRATION_MCP_ONLY.md](MIGRATION_MCP_ONLY.md) for what was removed to get here.)
+the single-shot `*_llm_*` diagnostic calls.
 
 ## Overview
 
@@ -22,7 +21,7 @@ the single-shot `*_llm_*` diagnostic calls. (See
                         ▼                        ▼                       ▼
               ┌───────────────────┐   ┌────────────────────┐  ┌───────────────────┐
               │  TOOL LAYER       │   │  WORKFLOW LAYER    │  │  RESOURCES/PROMPTS│
-              │  598 tools,       │◄──│  112 workflows,    │  │  plan://current,  │
+              │  598 tools,       │◄──│  113 workflows,    │  │  plan://current,  │
               │  category-gated,  │   │  chained tools,    │  │  spill://, doc://,│
               │  consent-gated    │   │  as wf__<id> tools │  │  grounding prompt │
               └─────────┬─────────┘   └─────────┬──────────┘  └───────────────────┘

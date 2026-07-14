@@ -6,7 +6,7 @@
 # and write keys on the plan's own row id. Cross-project isolation is automatic
 # because each project has its own .harness.db.
 #
-# Durability for small models (PLAN.md failure mode #5): while a plan is active,
+# Durability for small models (a known small-model failure mode): while a plan is active,
 # plan_decorate appends exactly one `PLAN: step N of M — <text>` line to every
 # host-facing tool result (see tool_dispatch). Decoration is computed at result
 # time from the DB and is NEVER persisted — nothing writes a `PLAN:` line into

@@ -35,7 +35,7 @@ A **single Bash script** (modular under `harness/`) that runs as a **Model
 Context Protocol server** over stdio. It gives a host:
 
 - **~598 tools** — atomic actions (read a file, list containers, run a query).
-- **~112 workflows** — scripted chains (format → lint → build → test in one call).
+- **~113 workflows** — scripted chains (format → lint → build → test in one call).
 - **10 languages** — Node.js, Python, Rust, Go, C/C++, Java, Kotlin, Scala, Ruby, PHP.
 - **DevOps** — Docker, Kubernetes, Helm, PostgreSQL/MySQL/Redis, SSH, networking, perf, security.
 
