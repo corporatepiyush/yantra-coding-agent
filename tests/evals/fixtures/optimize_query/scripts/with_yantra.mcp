@@ -1,0 +1,2 @@
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"edit","arguments":{"path":"app.sh","old_string":"    local total=0 i\n    for i in $(sqlite3 \"$db\" \"SELECT id FROM orders;\"); do\n        total=$(( total + $(sqlite3 \"$db\" \"SELECT amount FROM orders WHERE id = $i;\") ))\n    done\n    echo \"$total\"","new_string":"    sqlite3 \"$db\" \"SELECT SUM(amount) FROM orders;\""}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"read","arguments":{"path":"app.sh"}}}

@@ -1,0 +1,1 @@
+handlers.sh maps route names to handler functions (see handle_users / handle_orders and the case statement in route()). Add a products handler exactly like the existing ones: a handle_products() function that echoes "products: ok", routed under the case arm "products". Keep the existing handlers working.

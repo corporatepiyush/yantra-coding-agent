@@ -1,0 +1,18 @@
+>>	{"jsonrpc":"2.0","id":"init","method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{"sampling":{},"elicitation":{}},"clientInfo":{"name":"mcp_test_client","version":"2.0"}}}
+<<	{"jsonrpc":"2.0","id":"init","result":{"protocolVersion":"2025-11-25","serverInfo":{"name":"stub","version":"1.0"},"capabilities":{"tools":{}}}}
+>>	{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
+<<	{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"echo","description":"echo text back","inputSchema":{"type":"object","properties":{"text":{"type":"string","description":"text to echo"}},"required":["text"]}},{"name":"danger_tool","description":"needs consent","inputSchema":{"type":"object","properties":{}}},{"name":"llm_tool","description":"asks the host model","inputSchema":{"type":"object","properties":{}}}]}}
+>>	{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"echo","arguments":{"text":"hello"}}}
+<<	{"jsonrpc":"2.0","method":"notifications/message","params":{"level":"info","logger":"stub","data":{"message":"about to echo"}}}
+<<	{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Echo: hello"}],"isError":false}}
+>>	{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"danger_tool","arguments":{}}}
+<<	{"jsonrpc":"2.0","id":101,"method":"elicitation/create","params":{"message":"stub needs consent: run danger_tool?","requestedSchema":{"type":"object","properties":{"confirm":{"type":"boolean"}},"required":["confirm"]}}}
+>>	{"jsonrpc":"2.0","id":101,"result":{"action":"accept","content":{"confirm":true}}}
+<<	{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"danger_tool ran"}],"isError":false}}
+>>	{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"llm_tool","arguments":{}}}
+<<	{"jsonrpc":"2.0","id":101,"method":"sampling/createMessage","params":{"messages":[{"role":"user","content":{"type":"text","text":"say something"}}],"maxTokens":32}}
+>>	{"jsonrpc":"2.0","id":101,"result":{"role":"assistant","content":{"type":"text","text":"canned completion"},"model":"canned","stopReason":"endTurn"}}
+<<	{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"model said: canned completion"}],"isError":false}}
+>>	{"jsonrpc":"2.0","id":5,"method":"resources/read","params":{"uri":"plan://current"}}
+<<	{"jsonrpc":"2.0","id":5,"result":{"contents":[{"uri":"plan://current","mimeType":"text/plain","text":"stub plan"}]}}
+>>	{"jsonrpc":"2.0","method":"notifications/exit"}

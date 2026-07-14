@@ -1,0 +1,1 @@
+app.sh computes the order total with an N+1 query pattern (one sqlite3 SELECT per order id inside a loop). Rewrite total_order_value() to use a single aggregate query (SELECT SUM(amount) FROM orders). The program must still print total=6.

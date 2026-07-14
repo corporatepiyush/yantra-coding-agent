@@ -1,0 +1,3 @@
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"edit","arguments":{"path":"handlers.sh","old_string":"route() {","new_string":"handle_products() {\n    echo \"products: ok\"\n}\n\nroute() {"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"edit","arguments":{"path":"handlers.sh","old_string":"        orders) handle_orders ;;","new_string":"        orders) handle_orders ;;\n        products) handle_products ;;"}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"read","arguments":{"path":"handlers.sh"}}}

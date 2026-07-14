@@ -1,0 +1,2 @@
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"edit","arguments":{"path":"calc.sh","old_string":"echo $(( $1 - $2 ))","new_string":"echo $(( $1 + $2 ))"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"read","arguments":{"path":"calc.sh"}}}
