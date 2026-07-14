@@ -4,7 +4,7 @@
 
 ### The coding agent that does the mechanical 90% for **zero tokens** — and saves the LLM for what actually needs a brain.
 
-**609 built-in tools · 113 deterministic workflows · 10 languages · any LLM (or none)**
+**614 built-in tools · 113 deterministic workflows · 10 languages · any LLM (or none)**
 Pure Bash. Four tiny deps. Clone and run — on macOS, Linux, FreeBSD, or Windows (WSL).
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
@@ -36,7 +36,7 @@ you ──► Yantra ──► deterministic workflow / tool  (free, instant, re
 ```
 
 The result: a coding agent that is **cheaper, faster, more predictable, and
-dramatically more capable out of the box** — because 583 deterministic tools (out of 609)
+dramatically more capable out of the box** — because 588 deterministic tools (out of 614)
 never touch a model at all; only 26 are LLM-backed diagnostic tools.
 
 ---
@@ -47,7 +47,7 @@ never touch a model at all; only 26 are LLM-backed diagnostic tools.
 |---|---|---|
 | "run the tests" | plans a shell call through the LLM — tokens, latency | `wf:test run` — deterministic, **0 tokens**, auto-detects the framework |
 | "commit & push" | LLM round-trip | `wf:git quicksave` — **0 tokens** |
-| DevOps / DB / security ops | shell improvisation or bolt-on plugins | **609 first-class tools** built in |
+| DevOps / DB / security ops | shell improvisation or bolt-on plugins | **614 first-class tools** built in |
 | "why is this pod crashing?" | dumps raw logs at you | gathers evidence, redacts secrets, returns **root cause + fix** |
 | which model? | usually one vendor, one endpoint | **any** OpenAI-compatible endpoint · local models · tiered routing · HA failover · **or no LLM at all** |
 | runtime footprint | Node/Python stack, a daemon, a cloud account | **pure Bash + curl + sqlite3 + jq** — clone and run |
@@ -61,13 +61,13 @@ No lock-in. No daemon. No telemetry. No cloud account. It's a script.
 
 <div align="center">
 
-| 🧰 **609** | ⚡ **113** | 🗣️ **10** | 🧠 **26** | 🔒 **61** |
+| 🧰 **614** | ⚡ **113** | 🗣️ **10** | 🧠 **26** | 🔒 **61** |
 |:---:|:---:|:---:|:---:|:---:|
 | built-in tools | zero-token workflows | languages, deeply | LLM diagnostic tools | test suites |
 
 </div>
 
-- **583 deterministic tools** across 39 categories — DevOps, databases,
+- **588 deterministic tools** across 39 categories — DevOps, databases,
   security, data, cloud, docs, media, computer vision (OpenCV), computer use
   (screen/mouse/keyboard), media download (yt-dlp), performance, git,
   text/encoding — that run with **no LLM**.

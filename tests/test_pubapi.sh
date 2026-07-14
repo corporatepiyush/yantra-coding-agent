@@ -47,5 +47,26 @@ netok pubapi_stock    '{"symbol":"AAPL"}'                price
 netok pubapi_fx       '{"from":"USD","to":"EUR"}'        rate
 netok pubapi_flight   '{"icao24":"4b1806"}'              count
 
+# ── 5. Authenticated APIs (FingerprintJS / Bitly / Apify) ────────────────────
+unset FPJS_API_KEY BITLY_TOKEN APIFY_TOKEN   # exercise the missing-key path deterministically
+for spec in 'pubapi_fingerprint|safe' 'pubapi_bitly_clicks|safe' 'pubapi_apify_dataset|safe' \
+            'pubapi_bitly_shorten|writes' 'pubapi_apify_run|writes'; do
+    t="${spec%%|*}"; d="${spec#*|}"
+    grep -q "^$t|$d|pubapi|" <<<"$REG" || fail "$t not registered as $d/pubapi"
+done
+# writes tools auto-deny without consent (-y)
+out=$(mcp_call "$HARNESS" pubapi_bitly_shorten '{"url":"https://example.com"}') && fail "bitly_shorten ran without consent"
+grep -qiE 'consent|confirm|auto-den' <<<"$out" || fail "bitly_shorten denial message unexpected: $out"
+# safe auth tools: a clean 'set <ENV>' when the key is absent
+out=$(mcp_call "$HARNESS" pubapi_fingerprint '{"request_id":"abc123"}' || true)
+grep -qi 'set FPJS_API_KEY' <<<"$out" || fail "fingerprint missing-key message unexpected: $out"
+out=$(mcp_call "$HARNESS" pubapi_bitly_clicks '{"bitlink":"bit.ly/x"}' || true)
+grep -qi 'set BITLY_TOKEN' <<<"$out" || fail "bitly_clicks missing-key message unexpected: $out"
+out=$(mcp_call "$HARNESS" pubapi_apify_dataset '{"dataset_id":"abc"}' || true)
+grep -qi 'set APIFY_TOKEN' <<<"$out" || fail "apify_dataset missing-key message unexpected: $out"
+# consented-but-keyless write -> clean 'set <ENV>'
+out=$(mcp_call "$HARNESS" pubapi_apify_run '{"actor":"apify~web-scraper"}' y || true)
+grep -qi 'set APIFY_TOKEN' <<<"$out" || fail "apify_run keyless message unexpected: $out"
+
 echo "pubapi OK"
 exit 0

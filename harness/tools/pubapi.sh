@@ -146,8 +146,116 @@ tool_pubapi_flight() {
         || printf 'flight lookup failed to parse'
 }
 
+# ── Authenticated public APIs (an API key in the environment is required) ─────
+# The secret is passed via a header FILE (-H @<(...)), NEVER on the curl argv:
+# argv is world-readable through `ps`, so a key on the command line leaks to every
+# local process. Same rule the harness enforces for the LLM bearer token.
+_pubapi_auth_get() {   # url  header-name  secret
+    curl_web --max-time 20 --fail-with-body "$1" -H @<(printf '%s: %s\n' "$2" "$3")
+}
+_pubapi_auth_post() {  # url  header-name  secret  json-body
+    curl_web --max-time 30 --fail-with-body -X POST -H 'Content-Type: application/json' \
+        -H @<(printf '%s: %s\n' "$2" "$3") --data-binary @<(printf '%s' "$4") "$1"
+}
+
+# pubapi_fingerprint — FingerprintJS Pro Server API: retrieve device-intelligence
+# for a request_id (one identification event) or a visitor_id (visit history).
+# Read-only. Needs FPJS_API_KEY (Server API secret); region via FPJS_REGION (us|eu|ap).
+tool_pubapi_fingerprint() {
+    _pubapi_need || return 1
+    local key="${FPJS_API_KEY:-}"
+    [[ -z "$key" ]] && { printf 'set FPJS_API_KEY (Fingerprint Pro Server API secret — dashboard.fingerprint.com)'; return 1; }
+    local req vis; req=$(tool_arg request_id); vis=$(tool_arg visitor_id)
+    local base; case "${FPJS_REGION:-us}" in eu) base="https://eu.api.fpjs.io" ;; ap) base="https://ap.api.fpjs.io" ;; *) base="https://api.fpjs.io" ;; esac
+    local url
+    if [[ -n "$req" ]]; then
+        [[ "$req" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || { printf 'invalid request_id'; return 1; }
+        url="$base/events/$(url_encode "$req")"
+    elif [[ -n "$vis" ]]; then
+        [[ "$vis" =~ ^[A-Za-z0-9]{1,40}$ ]] || { printf 'invalid visitor_id'; return 1; }
+        url="$base/visitors/$(url_encode "$vis")?limit=10"
+    else
+        printf 'provide request_id (one event) or visitor_id (visit history)'; return 1
+    fi
+    local resp; resp=$(_pubapi_auth_get "$url" "Auth-API-Key" "$key")
+    [[ -z "$resp" ]] && { printf 'could not reach Fingerprint (offline or auth failed)'; return 1; }
+    printf '%s' "$resp" | jq -e 'has("error") or has("errors")' >/dev/null 2>&1 \
+        && { printf 'Fingerprint API error: %s' "$(printf '%s' "$resp" | jq -c '.error // .errors' 2>/dev/null | head -c 200)"; return 1; }
+    printf '%s' "$resp" | jq -c . 2>/dev/null || printf '%s' "$resp"
+}
+
+# pubapi_bitly_shorten — shorten a long URL via Bitly (creates a link → writes).
+# Needs BITLY_TOKEN (dev.bitly.com generic access token).
+tool_pubapi_bitly_shorten() {
+    _pubapi_need || return 1
+    local tok="${BITLY_TOKEN:-}"
+    [[ -z "$tok" ]] && { printf 'set BITLY_TOKEN (dev.bitly.com → generic access token)'; return 1; }
+    local url; url=$(tool_arg url)
+    [[ "$url" =~ ^https?://[^[:space:]]+$ ]] || { printf 'url must be a valid http(s) URL to shorten'; return 1; }
+    local resp; resp=$(_pubapi_auth_post "https://api-ssl.bitly.com/v4/shorten" "Authorization" "Bearer $tok" "$(jq -cn --arg u "$url" '{long_url:$u}')")
+    [[ -z "$resp" ]] && { printf 'could not reach Bitly (offline?)'; return 1; }
+    printf '%s' "$resp" | jq -e '.link' >/dev/null 2>&1 \
+        || { printf 'Bitly error: %s' "$(printf '%s' "$resp" | jq -r '.message // .description // .' 2>/dev/null | head -c 200)"; return 1; }
+    printf '%s' "$resp" | jq -c '{short_url:.link, id:.id, long_url:.long_url, created_at:.created_at}'
+}
+
+# pubapi_bitly_clicks — total click metrics for a bitlink (read-only). Needs BITLY_TOKEN.
+tool_pubapi_bitly_clicks() {
+    _pubapi_need || return 1
+    local tok="${BITLY_TOKEN:-}"
+    [[ -z "$tok" ]] && { printf 'set BITLY_TOKEN'; return 1; }
+    local bl; bl=$(tool_arg bitlink); bl="${bl#http://}"; bl="${bl#https://}"
+    [[ "$bl" =~ ^[A-Za-z0-9._/-]{1,120}$ ]] || { printf 'bitlink required (e.g. bit.ly/3abcXYZ)'; return 1; }
+    # bl is validated to safe chars only — inserted directly so its '/' stays literal.
+    local resp; resp=$(_pubapi_auth_get "https://api-ssl.bitly.com/v4/bitlinks/${bl}/clicks/summary" "Authorization" "Bearer $tok")
+    [[ -z "$resp" ]] && { printf 'could not reach Bitly (offline?)'; return 1; }
+    printf '%s' "$resp" | jq -e '.total_clicks' >/dev/null 2>&1 \
+        || { printf 'Bitly error: %s' "$(printf '%s' "$resp" | jq -r '.message // .description // .' 2>/dev/null | head -c 200)"; return 1; }
+    printf '%s' "$resp" | jq -c --arg bl "$bl" '{bitlink:$bl, total_clicks:.total_clicks, unit:.unit, units:.units, unit_reference:.unit_reference}'
+}
+
+# pubapi_apify_run — start an Apify actor run (executes a scraper — consumes
+# compute on your Apify account → writes/consent-gated). Returns run + dataset id.
+# Needs APIFY_TOKEN.
+tool_pubapi_apify_run() {
+    _pubapi_need || return 1
+    local tok="${APIFY_TOKEN:-}"
+    [[ -z "$tok" ]] && { printf 'set APIFY_TOKEN (console.apify.com → Settings → Integrations)'; return 1; }
+    local actor input; actor=$(tool_arg actor); input=$(tool_arg input)
+    [[ "$actor" =~ ^[A-Za-z0-9~_.-]{1,120}$ ]] || { printf 'actor required: an actorId or username~actor-name (e.g. apify~web-scraper)'; return 1; }
+    [[ -z "$input" ]] && input='{}'
+    printf '%s' "$input" | jq -e . >/dev/null 2>&1 || { printf 'input must be valid JSON (the actor input object)'; return 1; }
+    local resp; resp=$(_pubapi_auth_post "https://api.apify.com/v2/acts/${actor}/runs" "Authorization" "Bearer $tok" "$input")
+    [[ -z "$resp" ]] && { printf 'could not reach Apify (offline?)'; return 1; }
+    printf '%s' "$resp" | jq -e '.data.id' >/dev/null 2>&1 \
+        || { printf 'Apify error: %s' "$(printf '%s' "$resp" | jq -r '.error.message // .error // .' 2>/dev/null | head -c 200)"; return 1; }
+    printf '%s' "$resp" | jq -c '.data | {run_id:.id, actor:.actId, status:.status, dataset_id:.defaultDatasetId, started:.startedAt}'
+}
+
+# pubapi_apify_dataset — fetch items from an Apify dataset (a run's results).
+# Read-only, bounded by limit (default 100, max 1000). Needs APIFY_TOKEN.
+tool_pubapi_apify_dataset() {
+    _pubapi_need || return 1
+    local tok="${APIFY_TOKEN:-}"
+    [[ -z "$tok" ]] && { printf 'set APIFY_TOKEN'; return 1; }
+    local ds limit; ds=$(tool_arg dataset_id); limit=$(tool_arg limit 100)
+    [[ "$ds" =~ ^[A-Za-z0-9_-]{1,60}$ ]] || { printf 'dataset_id required (a run'"'"'s dataset_id / defaultDatasetId)'; return 1; }
+    [[ "$limit" =~ ^[0-9]+$ ]] || limit=100; (( limit > 1000 )) && limit=1000
+    local resp; resp=$(_pubapi_auth_get "https://api.apify.com/v2/datasets/${ds}/items?clean=true&limit=${limit}" "Authorization" "Bearer $tok")
+    [[ -z "$resp" ]] && { printf 'could not reach Apify (offline?)'; return 1; }
+    printf '%s' "$resp" | jq -e 'type=="array"' >/dev/null 2>&1 \
+        || { printf 'Apify error: %s' "$(printf '%s' "$resp" | jq -r '.error.message // .error // .' 2>/dev/null | head -c 200)"; return 1; }
+    printf '%s' "$resp" | jq -c '{count:length, items:.}'
+}
+
 tool_register "pubapi_weather"   tool_pubapi_weather   '{"type":"object","properties":{"location":{"type":"string","description":"place name, e.g. \"Tokyo\" or \"Paris, France\""}},"required":["location"]}' safe all pubapi
 tool_register "pubapi_forecast"  tool_pubapi_forecast  '{"type":"object","properties":{"location":{"type":"string","description":"place name"},"days":{"type":"integer","description":"number of days (1-16, default 3)"}},"required":["location"]}' safe all pubapi
 tool_register "pubapi_stock"     tool_pubapi_stock     '{"type":"object","properties":{"symbol":{"type":"string","description":"ticker: plain symbol (AAPL, MSFT), indices use ^ (^GSPC), crypto e.g. BTC-USD"}},"required":["symbol"]}' safe all pubapi
 tool_register "pubapi_fx"        tool_pubapi_fx        '{"type":"object","properties":{"from":{"type":"string","description":"source currency, 3-letter code (USD)"},"to":{"type":"string","description":"target currency, 3-letter code (EUR)"},"amount":{"type":"number","description":"amount to convert (default 1)"}},"required":["from","to"]}' safe all pubapi
 tool_register "pubapi_flight"    tool_pubapi_flight    '{"type":"object","properties":{"icao24":{"type":"string","description":"24-bit hex transponder id (e.g. 4b1806) — the reliable keyless lookup"},"callsign":{"type":"string","description":"flight callsign (best-effort), e.g. UAL123"}}}' safe all pubapi
+# Authenticated (env-var API keys): FingerprintJS Pro, Bitly, Apify.
+tool_register "pubapi_fingerprint"    tool_pubapi_fingerprint    '{"type":"object","properties":{"request_id":{"type":"string","description":"a single identification event id (FingerprintJS requestId)"},"visitor_id":{"type":"string","description":"a visitor id — returns visit history"}}}' safe all pubapi
+tool_register "pubapi_bitly_shorten"  tool_pubapi_bitly_shorten  '{"type":"object","properties":{"url":{"type":"string","description":"the long http(s) URL to shorten"}},"required":["url"]}' writes all pubapi
+tool_register "pubapi_bitly_clicks"   tool_pubapi_bitly_clicks   '{"type":"object","properties":{"bitlink":{"type":"string","description":"a bitlink id, e.g. bit.ly/3abcXYZ (scheme optional)"}},"required":["bitlink"]}' safe all pubapi
+tool_register "pubapi_apify_run"      tool_pubapi_apify_run      '{"type":"object","properties":{"actor":{"type":"string","description":"actorId or username~actor-name (e.g. apify~web-scraper)"},"input":{"type":"string","description":"actor input as a JSON object string (default {})"}},"required":["actor"]}' writes all pubapi
+tool_register "pubapi_apify_dataset"  tool_pubapi_apify_dataset  '{"type":"object","properties":{"dataset_id":{"type":"string","description":"an Apify dataset id (a run'"'"'s defaultDatasetId)"},"limit":{"type":"integer","description":"max items (default 100, max 1000)"}},"required":["dataset_id"]}' safe all pubapi

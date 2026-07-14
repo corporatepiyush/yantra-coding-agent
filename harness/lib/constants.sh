@@ -108,7 +108,7 @@ declare -A YCA_CAT_LABEL=(
     [cua]="Computer Use (screen/mouse/keyboard driver)"
     [ytdl]="YouTube & media downloader (yt-dlp)"
     [playwright]="Playwright end-to-end testing"
-    [pubapi]="Public APIs (weather / stocks / flights / FX)"
+    [pubapi]="Public APIs (weather/stocks/flights/FX, Bitly, Apify, Fingerprint)"
     [nodejs]="Node.js/TypeScript" [python]="Python"      [rust]="Rust"
     [golang]="Go"                [ccpp]="C/C++"          [java]="Java"
     [kotlin]="Kotlin"            [scala]="Scala"         [ruby]="Ruby"
