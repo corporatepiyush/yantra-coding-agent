@@ -28,16 +28,16 @@ lang_nodejs_profile() {
         # Detect test framework from scripts or devDependencies
         local scripts_tests
         scripts_tests=$(jq -r '.scripts | to_entries[] | select(.key | test("test")) | .value' "$dir/package.json" 2>/dev/null)
-        if echo "$scripts_tests" | grep -q 'vitest'; then test_framework="vitest"
-        elif echo "$scripts_tests" | grep -q 'jest'; then test_framework="jest"
-        elif echo "$scripts_tests" | grep -q 'mocha'; then test_framework="mocha"
-        elif echo "$scripts_tests" | grep -q 'playwright'; then test_framework="playwright"
-        else
-            if echo "$devdeps" | grep -q 'vitest'; then test_framework="vitest"
-            elif echo "$devdeps" | grep -q 'jest'; then test_framework="jest"
-            elif echo "$devdeps" | grep -q 'mocha'; then test_framework="mocha"
-            elif echo "$devdeps" | grep -q 'playwright'; then test_framework="playwright"
-            fi
+        # Builtin substring match ([[ == * ]]) — no echo|grep subprocess per check.
+        # scripts win over devDependencies (same priority as before).
+        if   [[ "$scripts_tests" == *vitest* ]];     then test_framework="vitest"
+        elif [[ "$scripts_tests" == *jest* ]];       then test_framework="jest"
+        elif [[ "$scripts_tests" == *mocha* ]];      then test_framework="mocha"
+        elif [[ "$scripts_tests" == *playwright* ]]; then test_framework="playwright"
+        elif [[ "$devdeps" == *vitest* ]];           then test_framework="vitest"
+        elif [[ "$devdeps" == *jest* ]];             then test_framework="jest"
+        elif [[ "$devdeps" == *mocha* ]];            then test_framework="mocha"
+        elif [[ "$devdeps" == *playwright* ]];       then test_framework="playwright"
         fi
     fi
     # Linter/formatter: Rust-first detection order (biome > oxlint > eslint;

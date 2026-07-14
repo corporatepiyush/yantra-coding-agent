@@ -111,6 +111,26 @@ _disk_stale_temp() {
     DISK_TMP_KIB=$k
 }
 
+# LARGE temp files REGARDLESS of age. The stale-temp pass only flags items older
+# than age_days, so a runaway process that fills $TMPDIR with hundreds of GB in
+# minutes (e.g. a hung test looping into a mktemp out.log) is invisible to it. This
+# reports any temp FILE at/over a size threshold (default 1 GiB) no matter how new,
+# so the single biggest disk-full cause we've actually hit is caught immediately.
+# Report-only: a live process may still be writing one, so it never auto-deletes.
+# Bounded: -size stats metadata only, and -maxdepth caps the walk.
+_disk_large_temp() {
+    local tmp="${TMPDIR:-/tmp}"; tmp="${tmp%/}"
+    local mib="${INPUT_large_temp_mib:-1024}"
+    DISK_LARGETMP_LIST=(); DISK_LARGETMP_KIB=0
+    [[ "$mib" =~ ^[0-9]+$ && "$mib" -gt 0 ]] || mib=1024
+    local p k
+    while IFS= read -r p; do
+        [[ -z "$p" ]] && continue
+        k=$(du -sk "$p" 2>/dev/null | awk 'END{print $1+0}')
+        DISK_LARGETMP_LIST+=("$k"$'\t'"$p"); DISK_LARGETMP_KIB=$((DISK_LARGETMP_KIB + k))
+    done < <(find "$tmp" -maxdepth 4 -type f -size +"${mib}"M 2>/dev/null)
+}
+
 _disk_bak_files() {
     DISK_BAK_LIST=(); local k=0 p
     while IFS= read -r p; do
@@ -225,7 +245,9 @@ _disk_build_dirs() {
                 -prune 2>/dev/null)
 }
 
-_disk_top_dirs() { du -x -d 2 "${INPUT_root:-$HOME}" 2>/dev/null | sort -rn | head -15; }
+# NOTE: -k is REQUIRED. Without it macOS/BSD `du` reports 512-byte blocks, which
+# _disk_h (which assumes KiB) would then render at 2× the real size.
+_disk_top_dirs() { du -kx -d 2 "${INPUT_root:-$HOME}" 2>/dev/null | sort -rn | head -15; }
 
 # ── disk.scan — report only ──────────────────────────────────────────────────
 wf_disk_scan() {
@@ -251,18 +273,30 @@ wf_disk_scan() {
     _disk_row "$(_disk_h "$DISK_BROWSER_KIB")" "Browser caches (${#DISK_BROWSER_LIST[@]} dir(s), Chrome/Brave/Chromium/Edge/Opera/Vivaldi)"
     _disk_row "$(_disk_h "$DISK_HISTORY_KIB")" "Browser history (${#DISK_HISTORY_LIST[@]} file(s) — cookies/logins/localStorage kept)"
 
+    # Large temp files regardless of age — the runaway-log case the age filter misses.
+    _disk_large_temp
+    if [[ ${#DISK_LARGETMP_LIST[@]} -gt 0 ]]; then
+        logmsg ""
+        logmsg "$(c_warn "$SYM_WARN Large temp files (≥ ${INPUT_large_temp_mib:-1024} MiB, ANY age — possible runaway; report only):")"
+        printf '%s\n' "${DISK_LARGETMP_LIST[@]}" | sort -rn | head -15 | while IFS=$'\t' read -r k p; do _disk_row "$(_disk_h "$k")" "$p"; done
+        logmsg "$(c_dim "    a live process may still be writing one — check 'lsof <file>' before deleting")"
+    fi
+
     logmsg ""; logmsg "$(c_bold 'Regenerable build/dep dirs (report only):')"
     _disk_build_dirs | sort -rn | head -15 | while IFS=$'\t' read -r k p; do _disk_row "$(_disk_h "$k")" "$p"; done
     logmsg ""; logmsg "$(c_bold 'Largest directories:')"
     _disk_top_dirs | while read -r k p; do _disk_row "$(_disk_h "$k")" "$p"; done
 
+    local ltmp_h; ltmp_h=$(_disk_h "${DISK_LARGETMP_KIB:-0}")
     emit result "$(jq -n --arg r "$(_disk_h "$reclaimable")" --argjson kib "$reclaimable" \
         --argjson caches "${#DISK_LABELS[@]}" --argjson tmp "${#DISK_TMP_LIST[@]}" \
         --argjson bcache "${#DISK_BROWSER_LIST[@]}" --argjson bhist "${#DISK_HISTORY_LIST[@]}" \
-        '{ok:true,summary:("~"+$r+" reclaimable"),
+        --argjson ltmp "${#DISK_LARGETMP_LIST[@]}" --argjson ltmpkib "${DISK_LARGETMP_KIB:-0}" --arg ltmph "$ltmp_h" \
+        '{ok:true,summary:("~"+$r+" reclaimable"+(if $ltmp>0 then "; "+($ltmp|tostring)+" large temp file(s) ("+$ltmph+") — investigate" else "" end)),
           data:{reclaimable_kib:$kib,reclaimable_human:$r,cache_buckets:$caches,stale_temp_items:$tmp,
                 browser_cache_dirs:$bcache,browser_history_files:$bhist,
-                note:"run disk.clean to delete (asks permission per category)"}}')"
+                large_temp_files:$ltmp,large_temp_kib:$ltmpkib,large_temp_human:$ltmph,
+                note:"run disk.clean to delete (asks permission per category); large_temp_files are report-only — check lsof before deleting"}}')"
 }
 
 # ── disk.clean — scan, then confirm + delete per category ────────────────────

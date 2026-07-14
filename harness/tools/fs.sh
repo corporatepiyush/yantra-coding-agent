@@ -247,7 +247,7 @@ tool_fs_organize() {
     confirm_action "Organize ${#files[@]} file(s) in $dir into subfolders by $by" "move files into $dir/<$by>/" || { confirm_denied_msg; return 1; }
     local f base bucket mt moved=0
     for f in "${files[@]}"; do
-        base=$(basename "$f")
+        base="${f##*/}"                       # param expansion — no per-file basename fork
         case "$by" in
             ext|type) bucket=$(path_ext "$f"); [[ -z "$bucket" ]] && bucket="no_ext" ;;
             date)     mt=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null); printf -v bucket '%(%Y-%m)T' "${mt:-0}" ;;
@@ -267,7 +267,7 @@ tool_fs_rename() {
     [[ -d "$dir" ]] || { printf 'not a directory: %s' "$dir"; return 1; }
     local -a from=() to=(); local f base newbase
     while IFS= read -r f; do
-        base=$(basename "$f"); newbase="${base//"$match"/"$replace"}"
+        base="${f##*/}"; newbase="${base//"$match"/"$replace"}"
         [[ "$newbase" == "$base" || -z "$newbase" ]] && continue
         # Keep the result a bare filename — a '/' (or . / ..) in `replace` would
         # turn it into a path and escape the folder (e.g. replace='../etc/x').
@@ -276,11 +276,11 @@ tool_fs_rename() {
     done < <(find "$dir" -maxdepth 1 -type f 2>/dev/null)
     (( ${#from[@]} == 0 )) && { printf 'no filenames contain "%s" in %s' "$match" "$dir"; return 0; }
     local preview="" i
-    for (( i=0; i<${#from[@]} && i<5; i++ )); do preview+="$(basename "${from[i]}") -> $(basename "${to[i]}")"$'\n'; done
+    for (( i=0; i<${#from[@]} && i<5; i++ )); do preview+="${from[i]##*/} -> ${to[i]##*/}"$'\n'; done
     confirm_action "Rename ${#from[@]} file(s): '$match' -> '$replace'" "$preview" || { confirm_denied_msg; return 1; }
     local renamed=0
     for (( i=0; i<${#from[@]}; i++ )); do
-        [[ -e "${to[i]}" ]] && { printf '[skip] %s (target exists)\n' "$(basename "${to[i]}")"; continue; }
+        [[ -e "${to[i]}" ]] && { printf '[skip] %s (target exists)\n' "${to[i]##*/}"; continue; }
         mv -- "${from[i]}" "${to[i]}" 2>/dev/null && (( renamed++ ))
     done
     printf 'renamed %d file(s)' "$renamed"

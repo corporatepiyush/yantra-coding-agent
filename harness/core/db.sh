@@ -64,7 +64,14 @@ CREATE INDEX IF NOT EXISTS idx_changes_ts       ON changes(ts);
 CREATE INDEX IF NOT EXISTS idx_changes_type     ON changes(change_type);
 CREATE INDEX IF NOT EXISTS idx_tasks_status     ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_created    ON tasks(created_ts);
+-- Hot plan lookup: WHERE agent='plan' AND status='active' (every plan step).
+-- The standalone status index can't serve the two-column predicate directly.
+CREATE INDEX IF NOT EXISTS idx_tasks_agent_status ON tasks(agent, status);
 CREATE INDEX IF NOT EXISTS idx_heartbeats_agent ON heartbeats(agent, ts);
+-- ts-only prune runs on EVERY heartbeat tick (DELETE ... WHERE ts < ?); the
+-- (agent, ts) PK/index can't serve a leading-ts predicate, so without this the
+-- prune (and the monitor 'WHERE ts > ?' liveness query) full-scans heartbeats.
+CREATE INDEX IF NOT EXISTS idx_heartbeats_ts      ON heartbeats(ts);
 CREATE INDEX IF NOT EXISTS idx_messages_ts      ON messages(ts);
 -- name: exact-name joins (refs/neighbors WHERE name=?); file_kind: symbols-in-
 -- file + the edge-build join (s.file=f.name); name_ci: case-insensitive lookup.

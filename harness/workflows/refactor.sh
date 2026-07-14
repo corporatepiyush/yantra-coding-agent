@@ -165,6 +165,14 @@ wf_refactor_extract() {
         *)                      decl="#define ${name} ${value}" ;;
     esac
 
+    # Guard: extract-constant slurps the WHOLE file into a bash array. A source
+    # file that needs a constant extracted is never huge; refuse a giant
+    # generated/minified/data file so a stray target can't balloon memory.
+    local _fsz; _fsz=$(wc -c < "$YCA_PROJECT_DIR/$file" 2>/dev/null || printf 0)
+    if (( _fsz > 26214400 )); then
+        emit_fail "file too large for extract-constant ($(( _fsz / 1048576 )) MiB > 25 MiB) — it reads the whole file into memory"
+        return 0
+    fi
     local -a lines=()
     mapfile -t lines < "$YCA_PROJECT_DIR/$file"
 
