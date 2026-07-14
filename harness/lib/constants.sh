@@ -85,6 +85,7 @@ declare -A YCA_CAT_DEFAULT=(
     [quality]=0  [ci]=0     [fw]=0        [doc]=0   [data]=0
     [media]=0    [ollama]=0 [monitor]=0   [s3]=0    [adk]=0   [brew]=0   [kg]=0   [localdb]=0
     [git]=0      [opencv]=0    [cua]=0   [ytdl]=0
+    [playwright]=0  [pubapi]=0
     # Language categories
     [nodejs]=0   [python]=0 [rust]=0      [golang]=0 [ccpp]=0
     [java]=0     [kotlin]=0 [scala]=0     [ruby]=0   [php]=0
@@ -106,6 +107,8 @@ declare -A YCA_CAT_LABEL=(
     [opencv]="Computer Vision (OpenCV 4.13)"
     [cua]="Computer Use (screen/mouse/keyboard driver)"
     [ytdl]="YouTube & media downloader (yt-dlp)"
+    [playwright]="Playwright end-to-end testing"
+    [pubapi]="Public APIs (weather / stocks / flights / FX)"
     [nodejs]="Node.js/TypeScript" [python]="Python"      [rust]="Rust"
     [golang]="Go"                [ccpp]="C/C++"          [java]="Java"
     [kotlin]="Kotlin"            [scala]="Scala"         [ruby]="Ruby"

@@ -1,7 +1,7 @@
 # Yantra Coding Agent — Architecture
 
 Yantra is a **pure MCP server**: a single Bash process that speaks JSON-RPC 2.0
-over stdio, exposing ~598 tools and ~113 workflows to any Model Context Protocol
+over stdio, exposing ~609 tools and ~113 workflows to any Model Context Protocol
 host. The host owns the conversation and the reasoning loop; Yantra owns the
 tools, their schemas, validation, consent gating, discovery, plans, budgets, and
 the single-shot `*_llm_*` diagnostic calls.
@@ -21,7 +21,7 @@ the single-shot `*_llm_*` diagnostic calls.
                         ▼                        ▼                       ▼
               ┌───────────────────┐   ┌────────────────────┐  ┌───────────────────┐
               │  TOOL LAYER       │   │  WORKFLOW LAYER    │  │  RESOURCES/PROMPTS│
-              │  598 tools,       │◄──│  113 workflows,    │  │  plan://current,  │
+              │  609 tools,       │◄──│  113 workflows,    │  │  plan://current,  │
               │  category-gated,  │   │  chained tools,    │  │  spill://, doc://,│
               │  consent-gated    │   │  as wf__<id> tools │  │  grounding prompt │
               └─────────┬─────────┘   └─────────┬──────────┘  └───────────────────┘
@@ -29,7 +29,7 @@ the single-shot `*_llm_*` diagnostic calls.
 ```
 
 A tool call is a `tools/call`; a workflow is a tool named `wf__<id>`; both flow
-through the same registry, validation, and consent gate. The 22 `*_llm_*` tools
+through the same registry, validation, and consent gate. The 26 `*_llm_*` tools
 additionally reach out to a configured provider (or request MCP *sampling* from
 the host). Everything else is deterministic and needs no model.
 
@@ -155,7 +155,7 @@ host's list cache and any prompt cache stay warm). Small context windows pay the
 catalog bill first, so the default wire size may not grow (Decision D6).
 
 ### Discovery over a huge catalog (T11)
-598 tools cannot be handed to a small model. One ranked search backend
+609 tools cannot be handed to a small model. One ranked search backend
 (`discovery_search`, typo-tolerant, over names + T6 descriptions) powers three
 meta-tools: `search_tools` (returns matching schemas), `describe_tool` (one
 tool's full schema + effective complexity), and `enable_category` (exposes a

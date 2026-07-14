@@ -34,14 +34,14 @@ own client).
 A **single Bash script** (modular under `harness/`) that runs as a **Model
 Context Protocol server** over stdio. It gives a host:
 
-- **~598 tools** — atomic actions (read a file, list containers, run a query).
+- **~609 tools** — atomic actions (read a file, list containers, run a query).
 - **~113 workflows** — scripted chains (format → lint → build → test in one call).
 - **10 languages** — Node.js, Python, Rust, Go, C/C++, Java, Kotlin, Scala, Ruby, PHP.
 - **DevOps** — Docker, Kubernetes, Helm, PostgreSQL/MySQL/Redis, SSH, networking, perf, security.
 
 **Philosophy — deterministic-first.** If a task can be done without a model, it
 is: git, test, build, format, lint, search, security scans, and DevOps reads are
-all pure and free. Only the 22 `*_llm_*` diagnostic tools call a model, and only
+all pure and free. Only the 26 `*_llm_*` diagnostic tools call a model, and only
 when you invoke them. A small model can call `docker_list_containers {"target":"stopped"}`
 where it could never compose `docker ps --filter status=exited` — that
 conversion of failure into success is the product.

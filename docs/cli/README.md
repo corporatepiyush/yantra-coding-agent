@@ -38,7 +38,7 @@ Load only the category you need:
 | **doctor** | doctor | 0 | 2 | [doctor.md](doctor.md) |
 | **fmt** | fmt | 0 | 2 | [fmt.md](fmt.md) |
 | **fs** | Filesystem & Search | 23 | 0 | [fs.md](fs.md) |
-| **git** | Git (read-only introspection) | 6 | 15 | [git.md](git.md) |
+| **git** | Git (read-only introspection) | 6 | 16 | [git.md](git.md) |
 | **golang** | Go | 31 | 0 | [golang.md](golang.md) |
 | **harness** | harness | 0 | 6 | [harness.md](harness.md) |
 | **helm** | Helm | 9 | 1 | [helm.md](helm.md) |
@@ -62,8 +62,10 @@ Load only the category you need:
 | **pg** | PostgreSQL | 15 | 0 | [pg.md](pg.md) |
 | **php** | PHP | 20 | 0 | [php.md](php.md) |
 | **pipeline** | pipeline | 0 | 3 | [pipeline.md](pipeline.md) |
+| **playwright** | Playwright end-to-end testing | 6 | 0 | [playwright.md](playwright.md) |
 | **pr** | pr | 0 | 3 | [pr.md](pr.md) |
 | **project** | project | 0 | 5 | [project.md](project.md) |
+| **pubapi** | Public APIs (weather / stocks / flights / FX) | 5 | 0 | [pubapi.md](pubapi.md) |
 | **python** | Python | 27 | 0 | [python.md](python.md) |
 | **quality** | Code Quality | 16 | 0 | [quality.md](quality.md) |
 | **redis** | Redis | 12 | 0 | [redis.md](redis.md) |

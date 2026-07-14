@@ -42,6 +42,7 @@ Workflows chain several tools into one action. Over MCP they are tools named `wf
 | `wf__git_stash` | git | no | Stash current changes |
 | `wf__git_sync` | git | **yes** | Fetch+rebase+push |
 | `wf__git_undo` | git | **yes** | Undo last commit (soft reset) |
+| `wf__git_wipe-history` | git | **yes** | Collapse ALL history to one root commit — backs up first, gated, verified, optional force-push |
 | `wf__git_worktree` | git | **yes** | List/add/remove/prune worktrees |
 
 ## Examples
